@@ -1,0 +1,80 @@
+# Structure du projet SOSStock
+
+```
+sosstock/
+├── .github/                    # Configuration CI/CD et workflows GitHub
+├── public/                     # Assets publics
+│   ├── favicon.ico
+│   ├── logo.svg
+│   └── index.html
+├── src/
+│   ├── assets/                 # Images, SVG, etc.
+│   ├── components/             # Composants React réutilisables
+│   │   ├── common/             # Composants génériques (boutons, inputs, cartes)
+│   │   │   ├── Button/
+│   │   │   ├── Card/
+│   │   │   ├── Input/
+│   │   │   ├── Modal/
+│   │   │   └── ...
+│   │   ├── layout/            # Composants de mise en page
+│   │   │   ├── Header/
+│   │   │   ├── Sidebar/
+│   │   │   ├── Footer/
+│   │   │   └── Layout/
+│   │   ├── dashboard/         # Composants spécifiques au dashboard
+│   │   ├── products/          # Composants liés aux produits
+│   │   ├── inventory/         # Composants de gestion de stock
+│   │   ├── orders/            # Composants de commandes
+│   │   └── reports/           # Composants de rapports et statistiques
+│   ├── context/               # Contextes React pour le state global
+│   │   ├── AuthContext.tsx
+│   │   └── NotificationContext.tsx
+│   ├── hooks/                 # Custom hooks
+│   │   ├── useAuth.ts
+│   │   ├── useProducts.ts
+│   │   ├── useInventory.ts
+│   │   └── ...
+│   ├── lib/                   # Utilitaires et fonctions génériques
+│   │   ├── api.ts             # Client API
+│   │   ├── supabase.ts        # Client Supabase
+│   │   ├── utils.ts           # Fonctions d'aide
+│   │   └── ...
+│   ├── pages/                 # Pages principales de l'application
+│   │   ├── Dashboard/
+│   │   ├── Products/
+│   │   ├── Inventory/
+│   │   ├── Locations/
+│   │   ├── Orders/
+│   │   ├── Suppliers/
+│   │   ├── Reports/
+│   │   ├── Settings/
+│   │   └── ...
+│   ├── routes/                # Configuration des routes
+│   │   └── index.tsx
+│   ├── services/              # Services métier
+│   │   ├── productService.ts
+│   │   ├── inventoryService.ts
+│   │   ├── alertService.ts
+│   │   ├── orderService.ts
+│   │   └── ...
+│   ├── types/                 # Définitions TypeScript
+│   │   ├── product.types.ts
+│   │   ├── inventory.types.ts
+│   │   ├── order.types.ts
+│   │   └── ...
+│   ├── App.tsx                # Composant racine
+│   ├── index.tsx              # Point d'entrée
+│   └── vite-env.d.ts          # Déclarations pour Vite
+├── .dockerignore
+├── .eslintrc.json
+├── .gitignore
+├── docker-compose.yml
+├── Dockerfile
+├── index.html
+├── jest.config.js
+├── package.json
+├── README.md
+├── tailwind.config.js
+├── tsconfig.json
+└── vite.config.ts
+```

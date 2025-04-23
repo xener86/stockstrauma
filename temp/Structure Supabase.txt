@@ -1,0 +1,432 @@
+-- Schema pour SOSStock/StockTrauma
+
+-- Table des utilisateurs (gérée par Supabase Auth, extension ici)
+-- Supabase crée déjà une table auth.users
+-- Nous créons une table profile liée
+
+CREATE TABLE profiles (
+  id UUID REFERENCES auth.users NOT NULL PRIMARY KEY,
+  email TEXT NOT NULL,
+  full_name TEXT,
+  avatar_url TEXT,
+  role TEXT NOT NULL DEFAULT 'operator',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  
+  CONSTRAINT role_check CHECK (role IN ('admin', 'operator'))
+);
+
+-- Fonction pour mettre à jour le timestamp automatiquement
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = CURRENT_TIMESTAMP;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Declencheur pour la mise à jour automatique du timestamp
+CREATE TRIGGER update_profiles_updated_at
+BEFORE UPDATE ON profiles
+FOR EACH ROW
+EXECUTE PROCEDURE update_updated_at_column();
+
+-- Table des catégories de produits
+CREATE TABLE categories (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_categories_updated_at
+BEFORE UPDATE ON categories
+FOR EACH ROW
+EXECUTE PROCEDURE update_updated_at_column();
+
+-- Table des lieux de stockage
+CREATE TABLE locations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  address TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_locations_updated_at
+BEFORE UPDATE ON locations
+FOR EACH ROW
+EXECUTE PROCEDURE update_updated_at_column();
+
+-- Table des fournisseurs
+CREATE TABLE suppliers (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  contact_name TEXT,
+  email TEXT,
+  phone TEXT,
+  address TEXT,
+  notes TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_suppliers_updated_at
+BEFORE UPDATE ON suppliers
+FOR EACH ROW
+EXECUTE PROCEDURE update_updated_at_column();
+
+-- Table des produits
+CREATE TABLE products (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  sku TEXT,
+  barcode TEXT,
+  category_id UUID REFERENCES categories,
+  unit_of_measure TEXT NOT NULL DEFAULT 'unité',
+  has_expiry BOOLEAN DEFAULT FALSE,
+  min_stock_level INTEGER DEFAULT 0,
+  warning_stock_level INTEGER DEFAULT 5,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_products_updated_at
+BEFORE UPDATE ON products
+FOR EACH ROW
+EXECUTE PROCEDURE update_updated_at_column();
+
+-- Table des variantes de produits
+CREATE TABLE product_variants (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  product_id UUID REFERENCES products NOT NULL,
+  variant_name TEXT NOT NULL,
+  attributes JSONB NOT NULL DEFAULT '{}',  -- Stocke des informations comme taille, couleur, etc.
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_product_variants_updated_at
+BEFORE UPDATE ON product_variants
+FOR EACH ROW
+EXECUTE PROCEDURE update_updated_at_column();
+
+-- Table de liaison produits-fournisseurs
+CREATE TABLE product_suppliers (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  product_id UUID REFERENCES products NOT NULL,
+  variant_id UUID REFERENCES product_variants,
+  supplier_id UUID REFERENCES suppliers NOT NULL,
+  supplier_reference TEXT,
+  unit_price DECIMAL(10, 2),
+  is_preferred BOOLEAN DEFAULT FALSE,
+  lead_time_days INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  
+  CONSTRAINT product_supplier_unique UNIQUE (product_id, variant_id, supplier_id)
+);
+
+CREATE TRIGGER update_product_suppliers_updated_at
+BEFORE UPDATE ON product_suppliers
+FOR EACH ROW
+EXECUTE PROCEDURE update_updated_at_column();
+
+-- Table des stocks par lieu et produit/variante
+CREATE TABLE inventory (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  location_id UUID REFERENCES locations NOT NULL,
+  product_id UUID REFERENCES products NOT NULL,
+  variant_id UUID REFERENCES product_variants,
+  quantity INTEGER NOT NULL DEFAULT 0,
+  reserved_quantity INTEGER NOT NULL DEFAULT 0, -- Quantité réservée mais pas encore utilisée
+  last_counted_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  
+  CONSTRAINT inventory_unique UNIQUE (location_id, product_id, variant_id)
+);
+
+CREATE TRIGGER update_inventory_updated_at
+BEFORE UPDATE ON inventory
+FOR EACH ROW
+EXECUTE PROCEDURE update_updated_at_column();
+
+-- Table des lots avec dates de péremption
+CREATE TABLE batches (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  product_id UUID REFERENCES products NOT NULL,
+  variant_id UUID REFERENCES product_variants,
+  batch_number TEXT NOT NULL,
+  expiry_date DATE,
+  manufactured_date DATE,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_batches_updated_at
+BEFORE UPDATE ON batches
+FOR EACH ROW
+EXECUTE PROCEDURE update_updated_at_column();
+
+-- Table du stock par lot, lieu et produit
+CREATE TABLE batch_inventory (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  location_id UUID REFERENCES locations NOT NULL,
+  batch_id UUID REFERENCES batches NOT NULL,
+  product_id UUID REFERENCES products NOT NULL,
+  variant_id UUID REFERENCES product_variants,
+  quantity INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  
+  CONSTRAINT batch_inventory_unique UNIQUE (location_id, batch_id, product_id, variant_id)
+);
+
+CREATE TRIGGER update_batch_inventory_updated_at
+BEFORE UPDATE ON batch_inventory
+FOR EACH ROW
+EXECUTE PROCEDURE update_updated_at_column();
+
+-- Types de mouvements de stock
+CREATE TYPE movement_type AS ENUM ('in', 'out', 'transfer', 'adjustment', 'consumption');
+
+-- Table des mouvements de stock
+CREATE TABLE inventory_movements (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  movement_type movement_type NOT NULL,
+  product_id UUID REFERENCES products NOT NULL,
+  variant_id UUID REFERENCES product_variants,
+  batch_id UUID REFERENCES batches,
+  source_location_id UUID REFERENCES locations,
+  destination_location_id UUID REFERENCES locations,
+  quantity INTEGER NOT NULL,
+  moved_by UUID REFERENCES profiles NOT NULL,
+  reference_number TEXT,  -- Numéro de référence externe (ex: commande, transfert)
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Table des commandes
+CREATE TABLE orders (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  reference_number TEXT NOT NULL,
+  supplier_id UUID REFERENCES suppliers NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  ordered_by UUID REFERENCES profiles NOT NULL,
+  ordered_date TIMESTAMP WITH TIME ZONE,
+  expected_delivery_date TIMESTAMP WITH TIME ZONE,
+  received_date TIMESTAMP WITH TIME ZONE,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  
+  CONSTRAINT status_check CHECK (status IN ('draft', 'pending', 'ordered', 'partially_received', 'received', 'cancelled'))
+);
+
+CREATE TRIGGER update_orders_updated_at
+BEFORE UPDATE ON orders
+FOR EACH ROW
+EXECUTE PROCEDURE update_updated_at_column();
+
+-- Table des éléments de commande
+CREATE TABLE order_items (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  order_id UUID REFERENCES orders NOT NULL,
+  product_id UUID REFERENCES products NOT NULL,
+  variant_id UUID REFERENCES product_variants,
+  quantity INTEGER NOT NULL,
+  received_quantity INTEGER NOT NULL DEFAULT 0,
+  unit_price DECIMAL(10, 2),
+  destination_location_id UUID REFERENCES locations NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_order_items_updated_at
+BEFORE UPDATE ON order_items
+FOR EACH ROW
+EXECUTE PROCEDURE update_updated_at_column();
+
+-- Table pour les alertes et notifications
+CREATE TABLE alerts (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  alert_type TEXT NOT NULL,
+  product_id UUID REFERENCES products,
+  variant_id UUID REFERENCES product_variants,
+  batch_id UUID REFERENCES batches,
+  location_id UUID REFERENCES locations,
+  message TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT FALSE,
+  severity TEXT NOT NULL DEFAULT 'info',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  
+  CONSTRAINT alert_type_check CHECK (alert_type IN ('low_stock', 'expiry', 'order_update', 'system')),
+  CONSTRAINT severity_check CHECK (severity IN ('info', 'warning', 'critical'))
+);
+
+-- Vue pour les produits à commander (seuil critique atteint)
+CREATE VIEW products_to_order AS
+SELECT 
+  p.id,
+  p.name,
+  p.sku,
+  pv.id as variant_id,
+  pv.variant_name,
+  l.id as location_id,
+  l.name as location_name,
+  i.quantity,
+  p.min_stock_level,
+  p.warning_stock_level,
+  COALESCE(ps.supplier_id, NULL) as preferred_supplier_id,
+  COALESCE(s.name, 'Aucun fournisseur préféré') as supplier_name
+FROM 
+  products p
+LEFT JOIN 
+  product_variants pv ON p.id = pv.product_id
+JOIN 
+  inventory i ON p.id = i.product_id AND (pv.id = i.variant_id OR i.variant_id IS NULL)
+JOIN 
+  locations l ON i.location_id = l.id
+LEFT JOIN 
+  product_suppliers ps ON p.id = ps.product_id AND (pv.id = ps.variant_id OR ps.variant_id IS NULL) AND ps.is_preferred = TRUE
+LEFT JOIN
+  suppliers s ON ps.supplier_id = s.id
+WHERE 
+  i.quantity <= p.min_stock_level
+  AND l.is_active = TRUE;
+
+-- Vue pour les produits avec DLUO proche
+CREATE VIEW products_near_expiry AS
+SELECT 
+  p.id as product_id,
+  p.name as product_name,
+  p.sku,
+  pv.id as variant_id,
+  pv.variant_name,
+  b.id as batch_id,
+  b.batch_number,
+  b.expiry_date,
+  bi.location_id,
+  l.name as location_name,
+  bi.quantity,
+  -- Calcule le nombre de jours avant expiration
+  (b.expiry_date - CURRENT_DATE) as days_until_expiry
+FROM 
+  products p
+JOIN 
+  batches b ON p.id = b.product_id
+LEFT JOIN 
+  product_variants pv ON b.variant_id = pv.id
+JOIN 
+  batch_inventory bi ON b.id = bi.batch_id
+JOIN 
+  locations l ON bi.location_id = l.id
+WHERE 
+  bi.quantity > 0
+  AND b.expiry_date IS NOT NULL
+  AND (b.expiry_date - CURRENT_DATE) < 90;  -- Alerte 90 jours avant expiration
+
+-- Fonction pour créer une alerte de stock bas
+CREATE OR REPLACE FUNCTION create_low_stock_alert()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.quantity <= (SELECT min_stock_level FROM products WHERE id = NEW.product_id) THEN
+    INSERT INTO alerts (
+      alert_type, 
+      product_id, 
+      variant_id, 
+      location_id, 
+      message, 
+      severity
+    ) VALUES (
+      'low_stock',
+      NEW.product_id,
+      NEW.variant_id,
+      NEW.location_id,
+      'Stock en dessous du seuil minimal',
+      'critical'
+    );
+  ELSIF NEW.quantity <= (SELECT warning_stock_level FROM products WHERE id = NEW.product_id) THEN
+    INSERT INTO alerts (
+      alert_type, 
+      product_id, 
+      variant_id, 
+      location_id, 
+      message, 
+      severity
+    ) VALUES (
+      'low_stock',
+      NEW.product_id,
+      NEW.variant_id,
+      NEW.location_id,
+      'Stock en dessous du seuil d''alerte',
+      'warning'
+    );
+  END IF;
+  
+  RETURN NEW;
+END;
+$ LANGUAGE plpgsql;
+
+-- Déclencheur pour les alertes de stock bas
+CREATE TRIGGER check_low_stock_alert
+AFTER INSERT OR UPDATE ON inventory
+FOR EACH ROW
+EXECUTE PROCEDURE create_low_stock_alert();
+
+-- Création de Row Level Security (RLS) pour sécuriser les données
+
+-- Politique pour les profiles - seul l'admin peut modifier les rôles
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view all profiles" 
+ON profiles FOR SELECT 
+USING (true);
+
+-- Politique modifiée pour éviter l'utilisation de OLD
+CREATE POLICY "Users can update their own profile" 
+ON profiles FOR UPDATE 
+USING (auth.uid() = id);
+
+-- Politique séparée pour la modification des rôles
+CREATE POLICY "Admins can update profiles" 
+ON profiles FOR UPDATE 
+USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin'));
+
+-- Politiques pour les autres tables (version simple)
+-- Dans une implémentation complète, ces politiques seraient plus détaillées
+
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "All users can view products" ON products FOR SELECT USING (true);
+CREATE POLICY "Only admins can insert products" ON products FOR INSERT 
+WITH CHECK (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin'));
+CREATE POLICY "Only admins can update products" ON products FOR UPDATE 
+USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin'));
+CREATE POLICY "Only admins can delete products" ON products FOR DELETE 
+USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin'));
+
+-- Similaire pour les autres tables
+ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "All users can view inventory" ON inventory FOR SELECT USING (true);
+CREATE POLICY "Admins and operators can insert inventory" ON inventory FOR INSERT 
+WITH CHECK (auth.uid() IN (SELECT id FROM profiles WHERE role IN ('admin', 'operator')));
+CREATE POLICY "Admins and operators can update inventory" ON inventory FOR UPDATE 
+USING (auth.uid() IN (SELECT id FROM profiles WHERE role IN ('admin', 'operator')));
+CREATE POLICY "Admins and operators can delete inventory" ON inventory FOR DELETE 
+USING (auth.uid() IN (SELECT id FROM profiles WHERE role IN ('admin', 'operator')));
+
+-- Indices pour améliorer les performances
+CREATE INDEX idx_inventory_product ON inventory(product_id);
+CREATE INDEX idx_inventory_location ON inventory(location_id);
+CREATE INDEX idx_batches_expiry ON batches(expiry_date);
+CREATE INDEX idx_inventory_movements_product ON inventory_movements(product_id);
+CREATE INDEX idx_order_items_order ON order_items(order_id);
