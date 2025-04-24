@@ -7,6 +7,9 @@ import { Card } from '../../components/common/Card';
 import { AlertBanner } from '../../components/common/AlertBanner';
 import { Order, OrderItem } from '../../types';
 
+// Définition explicite du type pour le statut de commande
+type OrderStatus = 'draft' | 'ordered' | 'pending' | 'partially_received' | 'received' | 'cancelled';
+
 interface OrderWithItems extends Order {
   items: OrderItem[];
   totalQuantity: number;
@@ -136,7 +139,7 @@ const OrderDetail: React.FC = () => {
           notes: item.notes || undefined,
           product: {
             name: item.products.name,
-            sku: item.products.sku || undefined
+            sku: item.products.sku || undefined  // Convertir null en undefined
           },
           variant: item.product_variants ? {
             name: item.product_variants.variant_name
@@ -155,7 +158,7 @@ const OrderDetail: React.FC = () => {
         const formattedOrder: OrderWithItems = {
           id: orderData.id,
           referenceNumber: orderData.reference_number,
-          status: orderData.status,
+          status: orderData.status as OrderStatus, // Cast explicite au type OrderStatus
           supplier: {
             id: orderData.suppliers.id,
             name: orderData.suppliers.name
@@ -198,7 +201,7 @@ const OrderDetail: React.FC = () => {
   };
 
   const handleCancelOrder = async () => {
-    if (!id) return;
+    if (!id || !order) return;
     
     if (window.confirm('Êtes-vous sûr de vouloir annuler cette commande ?')) {
       try {
@@ -212,12 +215,10 @@ const OrderDetail: React.FC = () => {
         if (error) throw error;
         
         // Update local state
-        if (order) {
-          setOrder({
-            ...order,
-            status: 'cancelled'
-          });
-        }
+        setOrder({
+          ...order,
+          status: 'cancelled' as OrderStatus // Cast explicite au type OrderStatus
+        });
         
         setSuccessMessage('La commande a été annulée avec succès.');
         
@@ -230,15 +231,15 @@ const OrderDetail: React.FC = () => {
     }
   };
 
-  const canReceiveOrder = (status: string) => {
+  const canReceiveOrder = (status: OrderStatus) => {
     return status === 'ordered' || status === 'partially_received';
   };
 
-  const canEditOrder = (status: string) => {
+  const canEditOrder = (status: OrderStatus) => {
     return status === 'draft' || status === 'pending';
   };
 
-  const canCancelOrder = (status: string) => {
+  const canCancelOrder = (status: OrderStatus) => {
     return status === 'draft' || status === 'pending' || status === 'ordered';
   };
 
@@ -453,8 +454,8 @@ const OrderDetail: React.FC = () => {
               {order.items.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{item.product.name}</div>
-                    {item.product.sku && (
+                    <div className="text-sm font-medium text-gray-900">{item.product?.name || 'Produit inconnu'}</div>
+                    {item.product?.sku && (
                       <div className="text-xs text-gray-500">{item.product.sku}</div>
                     )}
                   </td>
@@ -462,7 +463,7 @@ const OrderDetail: React.FC = () => {
                     {item.variant ? item.variant.name : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {item.destination.name}
+                    {item.destination?.name || 'Destination inconnue'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {item.quantity}

@@ -1,41 +1,92 @@
 // src/pages/Auth/Login.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const { signIn, isLoading } = useAuth();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
+  const { signIn, isLoading, user } = useAuth();
   const navigate = useNavigate();
+
+  // Vérifier si l'utilisateur est déjà connecté
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        setIsCheckingAuth(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          console.log("Utilisateur déjà connecté, redirection vers le tableau de bord");
+          navigate('/dashboard');
+        }
+      } catch (error) {
+        console.error("Erreur lors de la vérification de l'authentification:", error);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+
+    checkAuth();
+  }, [navigate]);
+
+  // Vérifier si l'utilisateur vient de se connecter
+  useEffect(() => {
+    if (user) {
+      console.log("Utilisateur connecté, redirection vers le tableau de bord");
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
-      setErrorMessage('Veuillez saisir votre email et votre mot de passe.');
+    // Validation des champs
+    if (!email.trim()) {
+      setErrorMessage('Veuillez saisir votre email.');
+      return;
+    }
+    
+    if (!password) {
+      setErrorMessage('Veuillez saisir votre mot de passe.');
       return;
     }
     
     try {
       setErrorMessage(null);
+      
+      // Tenter la connexion via AuthContext
       const { success, error } = await signIn(email, password);
       
       if (success) {
-        navigate('/dashboard');
+        // La redirection est gérée par l'useEffect qui surveille user
+        console.log("Connexion réussie");
       } else if (error) {
+        // Traiter les différents types d'erreurs
         if (error.message.includes('Invalid login credentials')) {
           setErrorMessage('Email ou mot de passe incorrect.');
+        } else if (error.message.includes('rate limit')) {
+          setErrorMessage('Trop de tentatives. Veuillez réessayer plus tard.');
         } else {
           setErrorMessage(`Erreur de connexion: ${error.message}`);
         }
       }
     } catch (err) {
-      setErrorMessage('Une erreur est survenue lors de la connexion.');
-      console.error('Login error:', err);
+      console.error('Erreur inattendue lors de la connexion:', err);
+      setErrorMessage('Une erreur inattendue est survenue. Veuillez réessayer.');
     }
   };
+
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col justify-center bg-gray-50 py-12 sm:px-6 lg:px-8">
@@ -49,7 +100,7 @@ const Login: React.FC = () => {
           SOSStock
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Gestion de stock pour SOS Trauma
+          Connexion à votre espace de gestion de stock
         </p>
       </div>
 
@@ -115,6 +166,8 @@ const Login: React.FC = () => {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
                   className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                 />
                 <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
@@ -151,6 +204,25 @@ const Login: React.FC = () => {
               </button>
             </div>
           </form>
+
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">
+                  Informations de connexion
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-6 text-center text-sm text-gray-500">
+              <p>Pour les besoins de démonstration:</p>
+              <p className="mt-1">Email: <span className="font-medium">demo@example.com</span></p>
+              <p className="mt-1">Mot de passe: <span className="font-medium">password123</span></p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

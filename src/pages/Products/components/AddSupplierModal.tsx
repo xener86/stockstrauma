@@ -114,7 +114,8 @@ export const AddSupplierModal: React.FC<AddSupplierModalProps> = ({
       if (selectedSupplier) {
         const productSupplier: Omit<ProductSupplier, 'id'> = {
           ...formData,
-          supplier: {
+          // Au lieu d'ajouter la propriété supplier, ajoutez supplierDetails qui est compatible avec votre type
+          supplierDetails: {
             id: selectedSupplier.id,
             name: selectedSupplier.name,
             contactName: selectedSupplier.contactName,

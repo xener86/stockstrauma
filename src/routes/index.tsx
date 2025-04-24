@@ -30,41 +30,68 @@ import Settings from '../pages/Settings/Settings';
 import NotFound from '../pages/NotFound';
 
 // Route sécurisée qui vérifie si l'utilisateur est connecté
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  requiredRole?: 'admin' | 'operator';
-}
+  interface ProtectedRouteProps {
+    children: React.ReactNode;
+    requiredRole?: 'admin' | 'operator';
+  }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
-  children, 
-  requiredRole 
-}) => {
-  const { profile, isLoading } = useAuth();
-  
-  // Pendant le chargement, afficher un indicateur de chargement
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
-      </div>
-    );
-  }
-  
-  // Si l'utilisateur n'est pas connecté, rediriger vers la page de connexion
-  if (!profile) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  // Si un rôle spécifique est requis, vérifier que l'utilisateur a ce rôle
-  if (requiredRole && profile.role !== requiredRole) {
-    // Rediriger vers le tableau de bord si l'utilisateur n'a pas le rôle requis
-    return <Navigate to="/dashboard" replace />;
-  }
-  
-  // Si tout est OK, afficher le contenu de la route
-  return <>{children}</>;
-};
-
+  const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
+    children, 
+    requiredRole 
+  }) => {
+    const { profile, isLoading, session } = useAuth();
+    const [timeout, setTimeout] = useState(false);
+    
+    // Ajouter un timeout pour éviter le chargement infini
+    useEffect(() => {
+      const timer = window.setTimeout(() => {
+        console.log("Timeout de chargement authentification atteint");
+        setTimeout(true);
+      }, 5000); // 5 secondes de timeout
+      
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }, []);
+    
+    // Si on a atteint le timeout, rediriger vers login
+    if (timeout && isLoading) {
+      console.log("Redirection après timeout");
+      return <Navigate to="/login" replace />;
+    }
+    
+    // Si on est en train de charger, mais que le timeout n'est pas atteint
+    if (isLoading && !timeout) {
+      return (
+        <div className="flex items-center justify-center h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+          <p className="ml-3 text-gray-600">Chargement...</p>
+        </div>
+      );
+    }
+    
+    // Si on a une session mais pas de profil, considérer qu'on est connecté
+    if (session && !profile) {
+      console.log("Session trouvée mais pas de profil - accès autorisé");
+      return <>{children}</>;
+    }
+    
+    // Si l'utilisateur n'est pas connecté, rediriger vers login
+    if (!profile && !session) {
+      console.log("Ni session ni profil - redirection vers login");
+      return <Navigate to="/login" replace />;
+    }
+    
+    // Si un rôle spécifique est requis, vérifier que l'utilisateur a ce rôle
+    if (requiredRole && profile?.role !== requiredRole) {
+      console.log("Rôle incorrect - redirection vers dashboard");
+      return <Navigate to="/dashboard" replace />;
+    }
+    
+    // Si tout est OK, afficher le contenu de la route
+    console.log("Accès autorisé");
+    return <>{children}</>;
+  };
 // Configuration des routes de l'application
 const AppRoutes: React.FC = () => {
   return (

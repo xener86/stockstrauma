@@ -1,4 +1,4 @@
-// src/context/AuthContext.tsx
+// src/context/AuthContext.tsx - Version corrigée
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, fetchUserProfile } from '../lib/supabase';
@@ -48,51 +48,58 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [profile, setProfile] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    // Récupérer la session initiale
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        setError(error);
-      } else {
-        setSession(session);
-        setUser(session?.user || null);
-        
-        // Si un utilisateur est connecté, récupérer son profil
-        if (session?.user) {
-          fetchUserProfile(session.user.id)
-            .then(({ data, error }) => {
-              if (error) {
-                setError(error);
-              } else if (data) {
-                setProfile({
-                  id: data.id,
-                  email: data.email,
-                  fullName: data.full_name || undefined,
-                  avatarUrl: data.avatar_url || undefined,
-                  role: data.role as 'admin' | 'operator'
-                });
-              }
-            })
-            .finally(() => {
-              setIsLoading(false);
-            });
-        } else {
-          setIsLoading(false);
-        }
-      }
-    }).catch((error) => {
-      setError(error);
-      setIsLoading(false);
-    });
+    const initAuth = async () => {
+      try {
+        setIsLoading(true);
 
-    // Configurer le listener pour les changements d'authentification
+        // Récupérer la session initiale
+        const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          throw sessionError;
+        }
+        
+        setSession(initialSession);
+        
+        if (initialSession?.user) {
+          setUser(initialSession.user);
+          
+          // Récupérer le profil utilisateur
+          const { data: profileData, error: profileError } = await fetchUserProfile(initialSession.user.id);
+          
+          if (profileError) {
+            console.warn("Erreur lors de la récupération du profil:", profileError);
+          } else if (profileData) {
+            setProfile({
+              id: profileData.id,
+              email: profileData.email,
+              fullName: profileData.full_name || undefined,
+              avatarUrl: profileData.avatar_url || undefined,
+              role: profileData.role as 'admin' | 'operator'
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Error initializing auth:', err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+      } finally {
+        setIsLoading(false);
+        setInitialized(true);
+      }
+    };
+
+    initAuth();
+
+    // Configure le listener pour les changements d'authentification
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
+      async (event, newSession) => {
+        console.log("Auth state changed:", event);
         setSession(newSession);
         setUser(newSession?.user || null);
         
-        // Mettre à jour le profil si l'utilisateur change
         if (newSession?.user) {
           try {
             const { data, error } = await fetchUserProfile(newSession.user.id);
@@ -132,7 +139,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signIn = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
@@ -158,6 +165,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await supabase.auth.signOut();
       setProfile(null);
+      setUser(null);
+      setSession(null);
     } catch (err) {
       console.error('Error signing out:', err);
       setError(err instanceof Error ? err : new Error(String(err)));
@@ -245,6 +254,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     resetPassword,
     updateProfile
   };
+
+  // Ne pas rendre le contenu jusqu'à ce que l'authentification soit initialisée
+  if (!initialized) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={authContextValue}>

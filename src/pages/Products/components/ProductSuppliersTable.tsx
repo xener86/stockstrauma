@@ -1,10 +1,15 @@
 // src/pages/Products/components/ProductSuppliersTable.tsx
 import React from 'react';
-import { ProductSupplier } from '../../../types';
+import { ProductSupplier, Supplier } from '../../../types';
 
 interface ProductSuppliersTableProps {
   productSuppliers: ProductSupplier[];
   onRemoveSupplier: (supplierLinkId: string) => void;
+}
+
+// Cette interface étend ProductSupplier pour inclure les détails du fournisseur
+interface EnhancedProductSupplier extends ProductSupplier {
+  supplierDetails?: Supplier;
 }
 
 export const ProductSuppliersTable: React.FC<ProductSuppliersTableProps> = ({
@@ -45,15 +50,15 @@ export const ProductSuppliersTable: React.FC<ProductSuppliersTableProps> = ({
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {productSuppliers.map((supplier) => (
+          {productSuppliers.map((supplier: EnhancedProductSupplier) => (
             <tr key={supplier.id} className="hover:bg-gray-50">
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm font-medium text-gray-900">
-                  {supplier.supplier.name}
+                  {supplier.supplierDetails?.name || "Fournisseur"}
                 </div>
-                {supplier.supplier.contactName && (
+                {supplier.supplierDetails?.contactName && (
                   <div className="text-xs text-gray-500">
-                    Contact: {supplier.supplier.contactName}
+                    Contact: {supplier.supplierDetails.contactName}
                   </div>
                 )}
               </td>

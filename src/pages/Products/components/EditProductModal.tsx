@@ -164,7 +164,7 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
                           name="description"
                           id="description"
                           rows={3}
-                          value={formData.description}
+                          value={formData.description || ''}
                           onChange={handleChange}
                           className="form-input"
                         />
@@ -179,7 +179,7 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
                             type="text"
                             name="sku"
                             id="sku"
-                            value={formData.sku}
+                            value={formData.sku || ''}
                             onChange={handleChange}
                             className="form-input"
                           />
@@ -193,7 +193,7 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
                             type="text"
                             name="barcode"
                             id="barcode"
-                            value={formData.barcode}
+                            value={formData.barcode || ''}
                             onChange={handleChange}
                             className="form-input"
                           />

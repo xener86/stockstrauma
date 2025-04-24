@@ -9,6 +9,12 @@ interface InventoryTableProps {
   warningStockLevel: number;
 }
 
+// Interface étendue pour les données d'affichage de l'inventaire
+interface DisplayInventoryItem extends InventoryItem {
+  locationName?: string;
+  variantName?: string;
+}
+
 export const InventoryTable: React.FC<InventoryTableProps> = ({
   inventory,
   productUnit,
@@ -56,33 +62,39 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {inventory.map((item) => (
-            <tr key={`${item.locationId}-${item.variantId || 'default'}`} className="hover:bg-gray-50">
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm font-medium text-gray-900">
-                  {item.location?.name || 'Inconnu'}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900">
-                  {item.variant ? item.variant.name : 'Standard'}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <span className={`text-sm ${getStockStatusClasses(item.quantity)}`}>
-                  {item.quantity} {productUnit}
-                </span>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {item.reservedQuantity} {productUnit}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {item.lastCountedAt 
-                  ? new Date(item.lastCountedAt).toLocaleDateString() 
-                  : 'Jamais'}
-              </td>
-            </tr>
-          ))}
+          {inventory.map((item) => {
+            // Nous prenons l'élément d'inventaire et le traitons comme une entité d'affichage
+            // Cette entité contiendra les propriétés nécessaires pour l'affichage
+            const displayItem = item as unknown as DisplayInventoryItem;
+            
+            return (
+              <tr key={`${item.locationId}-${item.variantId || 'default'}`} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-medium text-gray-900">
+                    {displayItem.locationName || 'Lieu inconnu'}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900">
+                    {displayItem.variantName ? displayItem.variantName : 'Standard'}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`text-sm ${getStockStatusClasses(item.quantity)}`}>
+                    {item.quantity} {productUnit}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {item.reservedQuantity} {productUnit}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {item.lastCountedAt 
+                    ? new Date(item.lastCountedAt).toLocaleDateString() 
+                    : 'Jamais'}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

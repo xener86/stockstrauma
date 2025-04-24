@@ -170,7 +170,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                           name="description"
                           id="description"
                           rows={3}
-                          value={formData.description}
+                          value={formData.description || ''}  // Correction ici
                           onChange={handleChange}
                           className="form-input"
                         />
@@ -185,7 +185,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                             type="text"
                             name="sku"
                             id="sku"
-                            value={formData.sku}
+                            value={formData.sku || ''}  // Correction ici
                             onChange={handleChange}
                             className="form-input"
                           />
@@ -199,7 +199,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
                             type="text"
                             name="barcode"
                             id="barcode"
-                            value={formData.barcode}
+                            value={formData.barcode || ''}  // Correction ici
                             onChange={handleChange}
                             className="form-input"
                           />
@@ -319,3 +319,5 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     </div>
   );
 };
+
+export default AddProductModal;

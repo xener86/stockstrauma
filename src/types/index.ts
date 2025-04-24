@@ -68,6 +68,13 @@ export interface Product {
     unitPrice?: number;
     isPreferred: boolean;
     leadTimeDays?: number;
+    // Ajout d'un champ optionnel pour stocker les détails du fournisseur
+    supplierDetails?: Supplier;
+    // Variante de produit (si disponible)
+    variant?: {
+      id: string;
+      name: string;
+    };
   }
   
   // Types pour les lieux de stockage

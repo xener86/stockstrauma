@@ -179,7 +179,8 @@ const ProductDetail: React.FC = () => {
           unitPrice: item.unit_price || undefined,
           isPreferred: item.is_preferred,
           leadTimeDays: item.lead_time_days || undefined,
-          supplier: {
+          // Ajouter supplierDetails au lieu de supplier
+          supplierDetails: {
             id: item.suppliers.id,
             name: item.suppliers.name,
             contactName: item.suppliers.contact_name,
@@ -312,7 +313,7 @@ const ProductDetail: React.FC = () => {
         unitPrice: data.unit_price || undefined,
         isPreferred: data.is_preferred,
         leadTimeDays: data.lead_time_days || undefined,
-        supplier: {
+        supplierDetails: {
           id: data.suppliers.id,
           name: data.suppliers.name,
           contactName: data.suppliers.contact_name,

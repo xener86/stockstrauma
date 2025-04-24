@@ -1,16 +1,28 @@
 // src/pages/Orders/NewOrder.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../../lib/supabase';
+
+// Component imports
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
 import { AlertBanner } from '../../components/common/AlertBanner';
 import { SupplierSelector } from './components/SupplierSelector';
 import { OrderItemsTable } from './components/OrderItemsTable';
 import { AddOrderItemModal } from './components/AddOrderItemModal';
+
+// Type imports
 import { Product, Location, Supplier, OrderItem } from '../../types';
 
+// Utility function to generate reference number
+const generateReferenceNumber = (): string => {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `CMD-${date}-${randomSuffix}`;
+};
+
+// Interface for location state
 interface LocationState {
   productId?: string;
 }
@@ -18,41 +30,65 @@ interface LocationState {
 const NewOrder: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const state = location.state as LocationState;
-  
-  // États pour les données principales
+  const state = location.state as LocationState | undefined;
+
+  // State for main data
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  
-  // États pour la commande
-  const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
-  const [referenceNumber, setReferenceNumber] = useState<string>(`CMD-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`);
-  const [notes, setNotes] = useState<string>('');
-  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState<string>('');
+
+  // Order-related states
+  const [selectedSupplierId, setSelectedSupplierId] = useState('');
+  const [referenceNumber, setReferenceNumber] = useState(generateReferenceNumber());
+  const [notes, setNotes] = useState('');
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  
-  // État pour le modal d'ajout d'article
+
+  // Modal and product selection states
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
   const [productToAdd, setProductToAdd] = useState<string | undefined>(state?.productId);
 
-  // Charger les données nécessaires à la création d'une commande
+  // Data fetching effect
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchInitialData = async () => {
       try {
         setIsLoading(true);
-        
-        // Charger les fournisseurs actifs
+
+        // Fetch active suppliers
         const { data: suppliersData, error: suppliersError } = await supabase
           .from('suppliers')
           .select('*')
           .eq('is_active', true)
           .order('name');
-        
+
         if (suppliersError) throw suppliersError;
-        
+
+        // Fetch products
+        const { data: productsData, error: productsError } = await supabase
+          .from('products')
+          .select(`
+            id,
+            name,
+            sku,
+            unit_of_measure,
+            categories (id, name)
+          `)
+          .order('name');
+
+        if (productsError) throw productsError;
+
+        // Fetch active locations
+        const { data: locationsData, error: locationsError } = await supabase
+          .from('locations')
+          .select('*')
+          .eq('is_active', true)
+          .order('name');
+
+        if (locationsError) throw locationsError;
+
+        // Update states
         setSuppliers(suppliersData.map(supplier => ({
           id: supplier.id,
           name: supplier.name,
@@ -61,24 +97,7 @@ const NewOrder: React.FC = () => {
           phone: supplier.phone || undefined,
           isActive: supplier.is_active
         })));
-        
-        // Charger les produits
-        const { data: productsData, error: productsError } = await supabase
-          .from('products')
-          .select(`
-            id,
-            name,
-            sku,
-            unit_of_measure,
-            categories (
-              id,
-              name
-            )
-          `)
-          .order('name');
-        
-        if (productsError) throw productsError;
-        
+
         setProducts(productsData.map(product => ({
           id: product.id,
           name: product.name,
@@ -88,20 +107,11 @@ const NewOrder: React.FC = () => {
             id: product.categories.id,
             name: product.categories.name
           } : null,
-          minStockLevel: 0, // Non utilisé ici
-          warningStockLevel: 0, // Non utilisé ici
-          hasExpiry: false // Non utilisé ici
+          minStockLevel: 0,
+          warningStockLevel: 0,
+          hasExpiry: false
         })));
-        
-        // Charger les lieux actifs
-        const { data: locationsData, error: locationsError } = await supabase
-          .from('locations')
-          .select('*')
-          .eq('is_active', true)
-          .order('name');
-        
-        if (locationsError) throw locationsError;
-        
+
         setLocations(locationsData.map(location => ({
           id: location.id,
           name: location.name,
@@ -109,38 +119,26 @@ const NewOrder: React.FC = () => {
           address: location.address || undefined,
           isActive: location.is_active
         })));
-        
-        // Si un productId est passé dans l'état de la location, pré-sélectionner ce produit
+
+        // Prepare for adding initial product if passed in state
         if (state?.productId) {
           setProductToAdd(state.productId);
           setIsAddItemModalOpen(true);
         }
-        
       } catch (err) {
-        console.error('Error fetching data:', err);
+        console.error('Error fetching initial data:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         setIsLoading(false);
       }
     };
-    
-    fetchData();
+
+    fetchInitialData();
   }, [state]);
 
+  // Event handlers
   const handleSupplierChange = (supplierId: string) => {
     setSelectedSupplierId(supplierId);
-  };
-
-  const handleReferenceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setReferenceNumber(e.target.value);
-  };
-
-  const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setNotes(e.target.value);
-  };
-
-  const handleExpectedDeliveryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setExpectedDeliveryDate(e.target.value);
   };
 
   const handleAddItemClick = () => {
@@ -149,26 +147,26 @@ const NewOrder: React.FC = () => {
   };
 
   const handleAddItem = (newItem: Omit<OrderItem, 'id' | 'order'>) => {
-    // Générer un ID temporaire pour l'article
     const id = uuidv4();
     
-    // Récupérer les informations du produit
     const product = products.find(p => p.id === newItem.productId);
-    
-    // Récupérer les informations du lieu de destination
     const destination = locations.find(l => l.id === newItem.destinationLocationId);
     
     if (product && destination) {
       const orderItem: OrderItem = {
         id,
-        orderId: '',  // Sera défini lors de la création de la commande
+        orderId: '',
         productId: newItem.productId,
-        variantId: newItem.variantId,
+        variantId: newItem.variantId 
+          ? newItem.variantId 
+          : undefined, // Explicit type conversion
         quantity: newItem.quantity,
         receivedQuantity: 0,
         unitPrice: newItem.unitPrice,
         destinationLocationId: newItem.destinationLocationId,
-        notes: newItem.notes,
+        notes: newItem.notes && newItem.notes.trim() 
+          ? newItem.notes.trim() 
+          : undefined, // Explicit handling of notes
         product: {
           name: product.name,
           sku: product.sku
@@ -183,6 +181,7 @@ const NewOrder: React.FC = () => {
     
     setIsAddItemModalOpen(false);
   };
+  
 
   const handleRemoveItem = (itemId: string) => {
     setOrderItems(prev => prev.filter(item => item.id !== itemId));
@@ -191,60 +190,50 @@ const NewOrder: React.FC = () => {
   const handleUpdateItemQuantity = (itemId: string, quantity: number) => {
     setOrderItems(prev => 
       prev.map(item => 
-        item.id === itemId 
-          ? { ...item, quantity } 
-          : item
+        item.id === itemId ? { ...item, quantity } : item
       )
     );
   };
 
-  const handleSaveAsDraft = async () => {
-    await saveOrder('draft');
-  };
-
-  const handleCreateOrder = async () => {
-    await saveOrder('ordered');
-  };
-
+  // Order saving logic
   const saveOrder = async (status: 'draft' | 'ordered') => {
     try {
-      // Validation des données
+      // Validation
       if (!selectedSupplierId) {
-        setError(new Error('Veuillez sélectionner un fournisseur'));
-        return;
+        throw new Error('Veuillez sélectionner un fournisseur');
       }
       
       if (!referenceNumber) {
-        setError(new Error('Veuillez saisir un numéro de référence'));
-        return;
+        throw new Error('Veuillez saisir un numéro de référence');
       }
       
       if (orderItems.length === 0) {
-        setError(new Error('Veuillez ajouter au moins un article à la commande'));
-        return;
+        throw new Error('Veuillez ajouter au moins un article à la commande');
       }
       
-      // Récupérer l'ID de l'utilisateur connecté
+      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        setError(new Error('Utilisateur non connecté'));
-        return;
+        throw new Error('Utilisateur non connecté');
       }
       
       setIsLoading(true);
       
-      // Créer la commande
+      // Prepare order data
       const orderData = {
         reference_number: referenceNumber,
         supplier_id: selectedSupplierId,
         status,
         ordered_by: user.id,
         ordered_date: status === 'ordered' ? new Date().toISOString() : null,
-        expected_delivery_date: expectedDeliveryDate ? new Date(expectedDeliveryDate).toISOString() : null,
-        notes: notes || null
+        expected_delivery_date: expectedDeliveryDate 
+          ? new Date(expectedDeliveryDate).toISOString() 
+          : null,
+        notes: notes.trim() || null
       };
       
+      // Insert order
       const { data: orderResult, error: orderError } = await supabase
         .from('orders')
         .insert(orderData)
@@ -257,16 +246,16 @@ const NewOrder: React.FC = () => {
         throw new Error('Erreur lors de la création de la commande');
       }
       
-      // Ajouter les articles à la commande
+      // Prepare and insert order items
       const orderItemsToInsert = orderItems.map(item => ({
         order_id: orderResult.id,
         product_id: item.productId,
-        variant_id: item.variantId || null,
+        variant_id: item.variantId ?? null,
         quantity: item.quantity,
         received_quantity: 0,
-        unit_price: item.unitPrice || null,
+        unit_price: item.unitPrice ?? null,
         destination_location_id: item.destinationLocationId,
-        notes: item.notes || null
+        notes: item.notes ?? null
       }));
       
       const { error: itemsError } = await supabase
@@ -275,7 +264,7 @@ const NewOrder: React.FC = () => {
       
       if (itemsError) throw itemsError;
       
-      // Rediriger vers la page de détail de la commande
+      // Navigate to order details
       navigate(`/orders/${orderResult.id}`, { 
         state: { 
           success: true, 
@@ -293,6 +282,13 @@ const NewOrder: React.FC = () => {
     }
   };
 
+  // Compute total price
+  const totalPrice = useMemo(() => 
+    orderItems.reduce((sum, item) => sum + (item.unitPrice || 0) * item.quantity, 0),
+    [orderItems]
+  );
+
+  // Render loading state
   if (isLoading && (!suppliers.length || !products.length || !locations.length)) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -301,12 +297,9 @@ const NewOrder: React.FC = () => {
     );
   }
 
-  const totalPrice = orderItems.reduce((sum, item) => {
-    return sum + (item.unitPrice || 0) * item.quantity;
-  }, 0);
-
   return (
     <div className="py-6 px-4 sm:px-6 lg:px-8">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
         <div>
           <div className="flex items-center">
@@ -325,6 +318,7 @@ const NewOrder: React.FC = () => {
         </div>
       </div>
 
+      {/* Error Banner */}
       {error && (
         <AlertBanner 
           title="Erreur" 
@@ -334,9 +328,12 @@ const NewOrder: React.FC = () => {
         />
       )}
 
+      {/* Main Content */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        {/* Order Details */}
         <Card title="Informations générales" className="md:col-span-2">
           <div className="space-y-4">
+            {/* Reference Number */}
             <div>
               <label htmlFor="reference" className="block text-sm font-medium text-gray-700 mb-1">
                 Numéro de référence *
@@ -346,18 +343,20 @@ const NewOrder: React.FC = () => {
                 id="reference"
                 name="reference"
                 value={referenceNumber}
-                onChange={handleReferenceChange}
+                onChange={(e) => setReferenceNumber(e.target.value)}
                 className="form-input"
                 required
               />
             </div>
 
+            {/* Supplier Selector */}
             <SupplierSelector 
               suppliers={suppliers}
               selectedSupplierId={selectedSupplierId}
               onSupplierChange={handleSupplierChange}
             />
 
+            {/* Delivery Date */}
             <div>
               <label htmlFor="expectedDeliveryDate" className="block text-sm font-medium text-gray-700 mb-1">
                 Date de livraison prévue
@@ -367,12 +366,13 @@ const NewOrder: React.FC = () => {
                 id="expectedDeliveryDate"
                 name="expectedDeliveryDate"
                 value={expectedDeliveryDate}
-                onChange={handleExpectedDeliveryDateChange}
+                onChange={(e) => setExpectedDeliveryDate(e.target.value)}
                 className="form-input"
                 min={new Date().toISOString().split('T')[0]}
               />
             </div>
 
+            {/* Notes */}
             <div>
               <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
                 Notes
@@ -382,7 +382,7 @@ const NewOrder: React.FC = () => {
                 name="notes"
                 rows={4}
                 value={notes}
-                onChange={handleNotesChange}
+                onChange={(e) => setNotes(e.target.value)}
                 className="form-input"
                 placeholder="Informations supplémentaires pour cette commande..."
               />
@@ -390,6 +390,7 @@ const NewOrder: React.FC = () => {
           </div>
         </Card>
 
+        {/* Order Summary */}
         <Card title="Résumé">
           <div className="space-y-4">
             <div>
@@ -404,7 +405,7 @@ const NewOrder: React.FC = () => {
               <Button
                 variant="primary"
                 fullWidth
-                onClick={handleCreateOrder}
+                onClick={() => saveOrder('ordered')}
                 isLoading={isLoading}
                 disabled={!selectedSupplierId || orderItems.length === 0}
               >
@@ -414,7 +415,7 @@ const NewOrder: React.FC = () => {
                 variant="outline"
                 fullWidth
                 className="mt-2"
-                onClick={handleSaveAsDraft}
+                onClick={() => saveOrder('draft')}
                 isLoading={isLoading}
                 disabled={!selectedSupplierId || orderItems.length === 0}
               >
@@ -425,6 +426,7 @@ const NewOrder: React.FC = () => {
         </Card>
       </div>
 
+      {/* Order Items */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-medium text-gray-900">Articles</h2>
@@ -444,6 +446,7 @@ const NewOrder: React.FC = () => {
         />
       </div>
 
+      {/* Add Item Modal */}
       {isAddItemModalOpen && (
         <AddOrderItemModal 
           isOpen={isAddItemModalOpen}
@@ -452,7 +455,7 @@ const NewOrder: React.FC = () => {
           products={products}
           locations={locations}
           selectedSupplierId={selectedSupplierId}
-          initialProductId={productToAdd}
+          initialProductId={productToAdd ?? null}
         />
       )}
     </div>

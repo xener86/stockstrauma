@@ -1,4 +1,4 @@
-// src/pages/Orders/Orders.tsx
+// src/pages/Orders/Orders.tsx (corrigé)
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -108,7 +108,7 @@ const Orders: React.FC = () => {
       const formattedOrders: Order[] = data.map(order => ({
         id: order.id,
         referenceNumber: order.reference_number,
-        status: order.status,
+        status: order.status as Order['status'], // Cast explicite vers le type attendu
         supplier: {
           id: order.suppliers.id,
           name: order.suppliers.name
@@ -188,7 +188,7 @@ const Orders: React.FC = () => {
       const formattedOrders: Order[] = data.map(order => ({
         id: order.id,
         referenceNumber: order.reference_number,
-        status: order.status,
+        status: order.status as Order['status'], // Cast explicite vers le type attendu
         supplier: {
           id: order.suppliers.id,
           name: order.suppliers.name
@@ -241,7 +241,7 @@ const Orders: React.FC = () => {
         setOrders(prevOrders => 
           prevOrders.map(order => 
             order.id === orderId 
-              ? { ...order, status: 'cancelled' } 
+              ? { ...order, status: 'cancelled' as Order['status'] } 
               : order
           )
         );
